@@ -19,65 +19,72 @@ def load_json_data(file_path: str) -> List[Dict[str, Any]]:
         print(f"Error loading JSON data: {e}")
         return []
 
-def extract_receipt_items(data: List[Dict[str, Any]]) -> pl.DataFrame:
+def extract_data(data: List[Dict[str, Any]]) -> pl.DataFrame:
     """
-    Extract all receipt items from the nested JSON structure.
+    Extract all receipts data from the original JSON.
     This function automatically preserves all fields from the nested items.
     """
     # Initialize empty list to store all items
-    all_items = []
-    
-    # Process each receipt
-    for receipt in data:
-        # Skip if receipt doesn't have item list or it's None
-        if "rewardsReceiptItemList" not in receipt or receipt["rewardsReceiptItemList"] is None:
-            continue
+    all_users = []
+
+    for user in data:
+        # Extract id from _id dict
+        user_id = user.get("_id", {}).get("$oid", None)
             
-        # Get receipt ID
-        receipt_id = receipt.get("_id", {}).get("$oid", None)
-        if not receipt_id:
-            continue
+        # Extract all date fields with helper function
+        created_date = user.get("createdDate", {}).get("$date", None)  # Required field
+        last_login_date = user.get("lastLogin", {}).get("$date", None)  # Required field
+
+        # Create updated receipt with extracted date values
+        clean_user = {**user}  # Create a copy of the receipt
+        # Update with extracted values
+        field_updates = {
+            "_id": user_id,
+            "createdDate": created_date,
+            "lastLogin": last_login_date,
+        }
+        clean_user.update(field_updates)
             
-        # Process each item in the receipt
-        for item in receipt["rewardsReceiptItemList"]:
-            # Add receipt_id to each item
-            item_with_id = item.copy()
-            item_with_id["receipt_id"] = receipt_id
-            all_items.append(item_with_id)
-    
-    # Return empty DataFrame if no items found
-    if not all_items:
-        return pl.DataFrame()
-    
-    # Convert to DataFrame - Polars will infer the schema automatically
-    return pl.from_dicts(all_items).lazy()
+        all_users.append(clean_user)
+
+    # Create lazyframe from processed items
+    if not all_users:
+        return pl.DataFrame([])  # Return empty dataframe if no items
+
+    df = pl.from_dicts(all_users).lazy()
+    return df
 
 """ 
 TRANSFORMATION
 """
-def process_receipts_file(file_path: str) -> pl.DataFrame:
-    """Process reward receipt items file and return items DataFrame."""
-    print("🚀 Kicking off reward receipt items ETL...")
+def process_users(file_path: str) -> pl.DataFrame:
+    """Process user file and return items DataFrame."""
+    print("🚀 Kicking off user ETL...")
     pbar = tqdm(total=3)
     # Load data
     data = load_json_data(file_path)
     
     pbar.update(1)
     # Extract items
-    df = extract_receipt_items(data)
-    
-    pbar.update(1)
-    # Convert string columns that should be numeric
-    numeric_cols = ["finalPrice", "itemPrice", "discountedItemPrice", 
-                    "targetPrice", "priceAfterCoupon", "pointsEarned"]
-    
-    # Only convert columns that actually exist in the data
-    for col in set(numeric_cols).intersection(set(df.collect_schema().names())):
-        df = df.with_columns(
-            pl.col(col).str.replace("$", "").cast(pl.Float64, strict=False).alias(col)
-        )
+    df = extract_data(data)
 
     pbar.update(1)
+    # Convert int64 columns to datetime
+    date_cols = [
+        'createdDate', 'lastLogin'
+    ]
+
+    # Only convert columns that actually exist in the data
+    existing_date_cols = set(date_cols).intersection(set(df.collect_schema().names()))
+    
+    if existing_date_cols:
+        df = df.with_columns([
+            pl.col(col).cast(pl.Datetime('ms')).alias(col)
+            for col in existing_date_cols
+        ])
+
+    pbar.update(1)
+    # Collect from lazyframe
     return df.collect()
 
 """ 
@@ -102,9 +109,9 @@ def load_data(table_name: str, df: pl.DataFrame) -> None:
 def run_etl() -> None:
     """Combining all defs into one runnable"""
     try: 
-        file_path = "./sample_data/receipts.json"
-        df = process_receipts_file(file_path)
-        table_name = "fetch.rewards_receipt_items"
+        file_path = "./sample_data/users.json"
+        df = process_users(file_path)
+        table_name = "fetch.users"
         load_data(table_name, df)
         print(f"🌈 (っ◔◡◔)っ ♥ data has been loaded into {table_name} ♥ ✨")
     except Exception as e:
