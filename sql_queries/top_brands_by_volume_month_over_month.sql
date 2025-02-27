@@ -26,4 +26,4 @@ from
     source_data
 where 
     "Rank" <= 5
-    AND "Month" between '2021-02-01' and '2021-02-28'
+    AND "Month" between '2021-01-01' and '2021-02-28'
