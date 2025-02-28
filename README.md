@@ -33,7 +33,97 @@ https://fetch-hiring.s3.amazonaws.com/analytics-engineer/ineeddata-data-modeling
 > ### *First: Review Existing Unstructured Data and Diagram a New Structured Relational Data Model*
 > 
 > *Review the 3 sample data files provided below. Develop a simplified, structured, relational diagram to represent how you would model the data in a data warehouse. The diagram should show each table’s fields and the joinable keys. You can use pencil and paper, readme, or any digital drawing or diagramming tool with which you are familiar. If you can upload the text, image, or diagram into a git repository and we can read it, we will review it!*
-> 
+>
+
+Here is the data model I came to after looking over the data and exploring it with python in Jupyter Notebook.
+
+![image.png](/imgs/data_model.png)
+
+The following code can be used and plugged into dbdiagram.io to reproduce this model with relations: 
+
+```sql
+Table receipts {
+  _id uuid [primary key]
+  bonusPointsEarned bigint
+  bonusPointsEarnedReason varchar
+  createDate timestamp
+  dateScanned timestamp
+  finishedDate timestamp
+  modifyDate timestamp
+  pointsAwardedDate timestamp
+  pointsEarned text
+  purchaseDate timestamp
+  purchasedItemCount bigint 
+  rewardsReceiptStatus text
+  totalSpent text 
+  userId text
+}
+
+Table rewards_receipt_items {
+    barcode text 
+    description text 
+    finalPrice doubleprecision
+    itemPrice doubleprecision
+    needsFetchReview boolean         
+    partnerItemId text 
+    preventTargetGapPoints boolean         
+    quantityPurchased bigint          
+    userFlaggedBarcode text 
+    userFlaggedNewItem boolean         
+    userFlaggedPrice text 
+    userFlaggedQuantity bigint          
+    receipt_id text
+    needsFetchReviewReason text 
+    pointsNotAwardedReason text 
+    pointsPayerId text 
+    rewardsGroup text 
+    rewardsProductPartnerId text 
+    userFlaggedDescription text 
+    originalMetaBriteBarcode text 
+    originalMetaBriteDescription text 
+    brandCode text 
+    competitorRewardsGroup text 
+    discountedItemPrice doubleprecision
+    originalReceiptItemText text 
+    itemNumber text 
+    originalMetaBriteQuantityPurchased bigint          
+    pointsEarned doubleprecision
+    targetPrice doubleprecision
+    competitiveProduct boolean         
+    originalFinalPrice text 
+    originalMetaBriteItemPrice text 
+    deleted boolean
+}
+
+Table users {
+    _id text [primary key]
+    active boolean
+    createdDate timestamp
+    lastLogin timestamp
+    role text
+    signUpSource text
+    state text
+}
+
+Table brands {
+    _id text [primary key]
+    barcode bigint  
+    category text    
+    categoryCode text    
+    name text    
+    topBrand boolean 
+    "cpg.ref" text    
+    "cpg.id" text    
+    brandCode text    
+
+}
+
+Ref: rewards_receipt_items.receipt_id > receipts._id
+Ref: receipts.userId > users._id
+Ref: rewards_receipt_items.brandCode > brands.brandCode
+```
+
+If curious, you can go through the `data_exploration.ipynb` file to get a really... really... raw look at my exploration process. 
 
 ## 🔍 Queries
 
@@ -65,7 +155,7 @@ group by
     1
 ```
 
-![image.png](Lukas%20Garrison%20Fetch%20Analytics%20Engineer%20Assessment%201a60860cd3528048b09bd5878c5ad12b/image.png)
+![image.png](/imgs/receipt_monthly_distribution.png)
 
 Already, there’s potential for miscommunication in only 30 records falling into the “most recent month”. Now, the data could be valid and they could absolutely be asking for the brands out of these 30 records. So, one other assumption is if it’s a timezone issue, we would see that the majority of these records would have the most volume from 12:00AM - ~4:00AM. 
 
@@ -82,7 +172,7 @@ where
 group by 1
 ```
 
-![image.png](Lukas%20Garrison%20Fetch%20Analytics%20Engineer%20Assessment%201a60860cd3528048b09bd5878c5ad12b/image%201.png)
+![image.png](/imgs/receipt_daily_dist.png)
 
 Well… that’s clearly not what’s going on here. Receipts are being recorded all throughout March 1st. 
 
@@ -148,7 +238,7 @@ where
     r."createDate" BETWEEN '02-01-2021' AND '03-01-2021'
 ```
 
-![image.png](Lukas%20Garrison%20Fetch%20Analytics%20Engineer%20Assessment%201a60860cd3528048b09bd5878c5ad12b/image%202.png)
+![image.png](/imgs/total_feb.png)
 
 We’re cooked. Only `1.4%` of February has a `brandCode` we can reconcile against. 
 
@@ -245,7 +335,7 @@ where
     AND "Month" between '2021-01-01' and '2021-03-01' -- Only change
 ```
 
-![image.png](Lukas%20Garrison%20Fetch%20Analytics%20Engineer%20Assessment%201a60860cd3528048b09bd5878c5ad12b/image%203.png)
+![image.png](/imgs/rank_by_volume_months.png)
 
 And here’s the visualization of what those rankings look like month over month in a visualization and number of receipts. Nice! 
 
@@ -277,7 +367,39 @@ Now, this could be a simple fumbling from the stakeholder in conflating “Accep
 
 But, for the sake of this exercise, let’s make an assumption that the stakeholder meant “Finished” when they communicated “Accepted”. We can easily create a `WHERE field IN ('val', 'val',...)` clause to filter to ‘Accepted’ and ‘Rejected’ status. 
 
-We also need to be mindful that we’re not being asked to count the receipts themselves, but the number of items associated with that receipt. This poses another problem → not every receipt has a `rewardsReceiptItemList` value present! So, there’s going to be missing data for this analysis. 
+One thing I want to check to see is how `receipts.purchasedItemCount` compares against `rewards_receipt_items.quantityPurchased`. I have a feeling that there might be some instances where `receipts.purchasedItemCount` might be `null` but we have a value on `rewards_receipt_items.quantityPurchased`. So let's check:
+```sql
+select
+    r."rewardsReceiptStatus"
+    , r."purchasedItemCount"
+    , rri."quantityPurchased"
+from 
+    "fetch".receipts r
+join 
+    "fetch".rewards_receipt_items rri on
+        r."_id" = rri."receipt_id"
+where 
+    r."purchasedItemCount" IS NULL
+```
+
+Sure enough, we have `49` records where `quantityPurchased` is showing `1` but `purchasedItemCount` is `null`. This means that choosing either of these to quantify total purchase count is going to result in an unreliable analysis. For the sake of only using `receipts` to produce a report, we can do the following: 
+
+```sql
+select
+    "rewardsReceiptStatus"
+    , SUM("purchasedItemCount") as total_items
+from 
+    "fetch".receipts
+where 
+    "rewardsReceiptStatus" IN ('FINISHED', 'REJECTED')
+group by 
+    "rewardsReceiptStatus"
+```
+![image.png](/imgs/finished_v_rejected_receipt_only.png)
+
+We get a roughly `2%` of receipts being "REJECTED" when looking at the total number of "FINISHED" and "REJECTED" receipts. Note, this is not _all_ receipts being compared since other statuses have been left off.
+
+Let's try to approach this from using `rewards_receipt_items`. We also need to be mindful that we’re not being asked to count the receipts themselves, but the number of items associated with that receipt. This poses another problem → not every receipt has a `rewardsReceiptItemList` value present! So, there’s going to be missing data for this analysis. 
 
 Let’s see how much available data we have to work with where `rewardsReceiptItemsList` is present: 
 
@@ -372,17 +494,18 @@ group by
     r."rewardsReceiptStatus"
 ```
 
-![image.png](Lukas%20Garrison%20Fetch%20Analytics%20Engineer%20Assessment%201a60860cd3528048b09bd5878c5ad12b/image%204.png)
+![image.png](/imgs/finished_v_rejected.png)
 
 This script can be found in `./sql_queries/receipt_item_status_comparison.sql` 
 
 With these percentages, it makes sense to use a donut chart to get a little better visualization of what’s happening.
 
-Nice! With the `8,367` items available, we see that only `2.28%` of the items had a receipt with `rewardsReceiptStatus` of “REJECTED”. 
+Nice! With the `8,367` items available, we see that only `2.28%` of the items had a receipt with `rewardsReceiptStatus` of “REJECTED”in the pool of "REJECTED" and "FINISHED" receipts.
 
 Some ways this could be enhanced or further analysis could be done: 
 
 - Having a better understanding of `quantityPurchased` v. `userFlaggedQuantity`
+- Combine fallback methods for `quantityPurchased`, `userFlaggedQuantity`, and `purchasedItemCount` - again, reconciliation is an issue here.
 - Filter to a time frame to look at accepted v. rejected over time to see if there are any trends
 - Group by category, brand, rewards group, etc.
 - Filter out any items → ie those with `description` ”ITEM NOT FOUND”
@@ -516,7 +639,7 @@ group by
     b."name"
 ```
 
-![image.png](Lukas%20Garrison%20Fetch%20Analytics%20Engineer%20Assessment%201a60860cd3528048b09bd5878c5ad12b/image%205.png)
+![image.png](/imgs/brand_by_vol.png)
 
 We can now see that **Cracker Barrel Cheese** is the highest ranking brand in terms of most spend for users created in the most recent 6 months.
 
@@ -560,7 +683,7 @@ group by
     b."name"
 ```
 
-![image.png](Lukas%20Garrison%20Fetch%20Analytics%20Engineer%20Assessment%201a60860cd3528048b09bd5878c5ad12b/image%206.png)
+![image.png](/imgs/brand_by_transactions.png)
 
 Great! We can see here that **Pepsi** was the brand with the most transactions for users created in the most recent 6 months! It’s also funny to notice that Cracker Barrel Cheese ranks 6th in transactions but 1st in spend. 
 
@@ -657,6 +780,8 @@ I feel like our first step in establishing confidence in our analytics program i
 
 While that’s the long-term solution, one immediate actionable thing we can do to salvage this analysis is up the volume of sample records from Jan 2021 to Feb 2021. Or open that up to a 6 months timeframe. Ideally, getting a more robust sample set of data might allow us to use our existing scripts to perform the same analysis but gain a little more confidence in the significance of the results. That along with hammering out our data dictionary for ambiguous terminology should get us in “better” shape than where we sit right now. 
 
-I honestly don’t feel comfortable scaling this data solution as it exists today. We’re just running the risk of shoving more bad data into our database, potentially compromising existing analytics solutions, and killing confidence in our data culture if we were to scale now. There’s just too much inconsistent, missing, and irreconcilable data currently. We should be focusing our efforts on the entry point of data into our data pipelines and implementing validation methods. I’d be more than happy to reach out to whoever I need to for getting that conversation started. 
+I honestly don’t feel comfortable scaling this data solution as it exists today. We’re just running the risk of shoving more bad data into our database, potentially compromising existing analytics solutions, and killing confidence in our data culture if we were to scale now. There’s just too much inconsistent, missing, and irreconcilable data currently. We should be focusing our efforts on the entry point of data into our data pipelines and implementing validation methods. I’d be more than happy to reach out to whoever I need to for getting that conversation started.
+
+Once we have those items ironed out, I'd also love to explore productionizing a solution with solid data. Given solid data, a few tweaks, and fine-tuning the model, we can create automated pulls and transormations of this data so that we can have reliable, up-to-date, and accurate data. 
 
 Lemme know if you have any questions or want to chat about this over a call!

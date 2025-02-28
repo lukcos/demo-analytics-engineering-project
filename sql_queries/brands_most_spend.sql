@@ -35,6 +35,7 @@ user_months as (
         date_trunc('month', max("createdDate")) as max_month 
         -- , date_trunc('month', min("createdDate")) as min_month 
     from "fetch".users
+
 )
 
 select 
@@ -54,5 +55,6 @@ join
         u."_id" = r."userId"
 where 
     u."createdDate" >= (select max_month from user_months) - interval '6 months'
+    AND u.role != 'fetch-staff' -- making sure we're not including any test data from staff
 group by 
     b."name"

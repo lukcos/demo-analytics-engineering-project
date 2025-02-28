@@ -23,5 +23,7 @@ join
         u."_id" = r."userId"
 where 
     u."createdDate" >= (select max_month from user_months) - interval '6 months'
+    AND u.role != 'fetch-staff' -- making sure we're not including any test data from staff
 group by 
     b."name"
+limit 15

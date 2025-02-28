@@ -35,8 +35,8 @@ def extract_data(data: List[Dict[str, Any]]) -> pl.DataFrame:
         cpg_ref = brand.get("cpg", {}).get("$ref", None)  # Required field
         cpg_id = brand.get("cpg", {}).get("$id", {}).get("$oid", None)  # Required field
 
-        # Create updated receipt with extracted date values
-        clean_brand = {**brand}  # Create a copy of the receipt
+        # Create updated brands with extracted date values
+        clean_brand = {**brand}  # Create a copy of the brands
         # Update with extracted values
         field_updates = {
             "_id": brand_id,

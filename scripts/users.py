@@ -35,8 +35,8 @@ def extract_data(data: List[Dict[str, Any]]) -> pl.DataFrame:
         created_date = user.get("createdDate", {}).get("$date", None)  # Required field
         last_login_date = user.get("lastLogin", {}).get("$date", None)  # Required field
 
-        # Create updated receipt with extracted date values
-        clean_user = {**user}  # Create a copy of the receipt
+        # Create updated user with extracted date values
+        clean_user = {**user}  # Create a copy of the user
         # Update with extracted values
         field_updates = {
             "_id": user_id,
