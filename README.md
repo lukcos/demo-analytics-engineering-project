@@ -35,7 +35,7 @@ https://fetch-hiring.s3.amazonaws.com/analytics-engineer/ineeddata-data-modeling
 > *Review the 3 sample data files provided below. Develop a simplified, structured, relational diagram to represent how you would model the data in a data warehouse. The diagram should show each table’s fields and the joinable keys. You can use pencil and paper, readme, or any digital drawing or diagramming tool with which you are familiar. If you can upload the text, image, or diagram into a git repository and we can read it, we will review it!*
 >
 
-Here is the data model I came to after looking over the data and exploring it with python in Jupyter Notebook.
+Here is the data model I came to after looking over the data and exploring it with python in Jupyter Notebook. After examing all of the possible fields that could be present on the JSON provided, I landed on a 4 table schema, breaking out `receipts.rewardsReceiptItemList` into its own table. There were too many fields nested within that object to feel confident that simply using postgres jsonb operator (IE `receipts.rewardsReceiptItemList::JSON->>'brandCode'`) would be robust enough to do more complex analysis on this data. After answering questions, I feel confident this was the right approach to keep the data model manageable. I also added the `receipt_id` as its own field on the exploded `rewardsReceiptItemList` table to be able to reference back to the original receipt.
 
 ![image.png](/imgs/data_model.png)
 
@@ -124,6 +124,8 @@ Ref: rewards_receipt_items.brandCode > brands.brandCode
 ```
 
 If curious, you can go through the `data_exploration.ipynb` file to get a really... really... raw look at my exploration process. 
+
+I took this model and created some elt scripts that transform the JSON objects and load them into a postgres database.
 
 ## 🔍 Queries
 
