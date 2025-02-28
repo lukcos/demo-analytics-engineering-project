@@ -1,5 +1,22 @@
 # Lukas Garrison | Fetch Analytics Engineer Assessment
 
+## Getting Started
+
+You can load the sample data directly into a postgres database by running the following
+``` 
+python -m venv .venv
+
+source .venv/bin/activate
+
+pip install -r requirements.txt
+```
+Define your `.env` file with a var `PG_URI` that contains your postgres URI. Once that's defined, you can simply load in the sample data by running: 
+```
+python scripts/run_scripts.py
+```
+
+You should be good to go and run the accompanying SQL scripts against your data now.
+
 ## 📚 Resources
 
 https://github.com/lukcos/fetch-analytics-engineer/tree/main
