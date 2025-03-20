@@ -1,4 +1,4 @@
-# Lukas Garrison | Fetch Analytics Engineer Assessment
+# Lukas Garrison | Demo Analytics and Engineering Project
 
 ## Getting Started
 
