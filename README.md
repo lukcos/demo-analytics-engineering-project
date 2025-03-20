@@ -17,12 +17,6 @@ python scripts/run_scripts.py
 
 You should be good to go and run the accompanying SQL scripts against your data now.
 
-## 📚 Resources
-
-https://github.com/lukcos/fetch-analytics-engineer/tree/main
-
-https://fetch-hiring.s3.amazonaws.com/analytics-engineer/ineeddata-data-modeling/data-modeling.html
-
 ## 🪨  Data Model
 
 ---
